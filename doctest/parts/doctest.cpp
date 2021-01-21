@@ -1061,6 +1061,7 @@ namespace detail {
     }
 
     bool TestCase::operator<(const TestCase& other) const {
+        // this will be used only to differentiate between test cases - not relevant for sorting
         if(m_line != other.m_line)
             return m_line < other.m_line;
         const int file_cmp = m_file.compare(other.m_file);
@@ -1386,15 +1387,29 @@ namespace {
     struct FatalConditionHandler
     {
         static LONG CALLBACK handleException(PEXCEPTION_POINTERS ExceptionInfo) {
-            for(size_t i = 0; i < DOCTEST_COUNTOF(signalDefs); ++i) {
-                if(ExceptionInfo->ExceptionRecord->ExceptionCode == signalDefs[i].id) {
-                    reportFatal(signalDefs[i].name);
-                    break;
+            // Multiple threads may enter this filter/handler at once. We want the error message to be printed on the
+            // console just once no matter how many threads have crashed.
+            static std::mutex mutex;
+            static bool execute = true;
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                if(execute) {
+                    bool reported = false;
+                    for(size_t i = 0; i < DOCTEST_COUNTOF(signalDefs); ++i) {
+                        if(ExceptionInfo->ExceptionRecord->ExceptionCode == signalDefs[i].id) {
+                            reportFatal(signalDefs[i].name);
+                            reported = true;
+                            break;
+                        }
+                    }
+                    if(reported == false)
+                        reportFatal("Unhandled SEH exception caught");
+                    if(isDebuggerActive() && !g_cs->no_breaks)
+                        DOCTEST_BREAK_INTO_DEBUGGER();
                 }
+                execute = false;
             }
-            // If its not an exception we care about, pass it along.
-            // This stops us from eating debugger breaks etc.
-            return EXCEPTION_CONTINUE_SEARCH;
+            std::exit(EXIT_FAILURE);
         }
 
         FatalConditionHandler() {
@@ -1416,6 +1431,8 @@ namespace {
             original_terminate_handler = std::get_terminate();
             std::set_terminate([]() noexcept {
                 reportFatal("Terminate handler called");
+                if(isDebuggerActive() && !g_cs->no_breaks)
+                    DOCTEST_BREAK_INTO_DEBUGGER();
                 std::exit(EXIT_FAILURE); // explicitly exit - otherwise the SIGABRT handler may be called as well
             });
 
@@ -1426,8 +1443,29 @@ namespace {
             prev_sigabrt_handler = std::signal(SIGABRT, [](int signal) noexcept {
                 if(signal == SIGABRT) {
                     reportFatal("SIGABRT - Abort (abnormal termination) signal");
+                    if(isDebuggerActive() && !g_cs->no_breaks)
+                        DOCTEST_BREAK_INTO_DEBUGGER();
+                    std::exit(EXIT_FAILURE);
                 }
             });
+
+            // The following settings are taken from google test, and more
+            // specifically from UnitTest::Run() inside of gtest.cc
+
+            // the user does not want to see pop-up dialogs about crashes
+            prev_error_mode_1 = SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOALIGNMENTFAULTEXCEPT |
+                                             SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+            // This forces the abort message to go to stderr in all circumstances.
+            prev_error_mode_2 = _set_error_mode(_OUT_TO_STDERR);
+            // In the debug version, Visual Studio pops up a separate dialog
+            // offering a choice to debug the aborted program - we want to disable that.
+            prev_abort_behavior = _set_abort_behavior(0x0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+            // In debug mode, the Windows CRT can crash with an assertion over invalid
+            // input (e.g. passing an invalid file descriptor). The default handling
+            // for these assertions is to pop up a dialog and wait for user input.
+            // Instead ask the CRT to dump such assertions to stderr non-interactively.
+            prev_report_mode = _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+            prev_report_file = _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
         }
 
         static void reset() {
@@ -1435,16 +1473,25 @@ namespace {
                 // Unregister handler and restore the old guarantee
                 SetUnhandledExceptionFilter(previousTop);
                 SetThreadStackGuarantee(&guaranteeSize);
-                previousTop = nullptr;
-                isSet = false;
                 std::set_terminate(original_terminate_handler);
                 std::signal(SIGABRT, prev_sigabrt_handler);
+                SetErrorMode(prev_error_mode_1);
+                _set_error_mode(prev_error_mode_2);
+                _set_abort_behavior(prev_abort_behavior, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+                _CrtSetReportMode(_CRT_ASSERT, prev_report_mode);
+                _CrtSetReportFile(_CRT_ASSERT, prev_report_file);
+                isSet = false;
             }
         }
 
         ~FatalConditionHandler() { reset(); }
 
     private:
+        static UINT         prev_error_mode_1;
+        static int          prev_error_mode_2;
+        static unsigned int prev_abort_behavior;
+        static int          prev_report_mode;
+        static _HFILE       prev_report_file;
         static void (*prev_sigabrt_handler)(int);
         static std::terminate_handler original_terminate_handler;
         static bool isSet;
@@ -1452,6 +1499,11 @@ namespace {
         static LPTOP_LEVEL_EXCEPTION_FILTER previousTop;
     };
 
+    UINT         FatalConditionHandler::prev_error_mode_1;
+    int          FatalConditionHandler::prev_error_mode_2;
+    unsigned int FatalConditionHandler::prev_abort_behavior;
+    int          FatalConditionHandler::prev_report_mode;
+    _HFILE       FatalConditionHandler::prev_report_file;
     void (*FatalConditionHandler::prev_sigabrt_handler)(int);
     std::terminate_handler FatalConditionHandler::original_terminate_handler;
     bool FatalConditionHandler::isSet = false;
@@ -2389,7 +2441,6 @@ namespace {
 
         struct JUnitTestCaseData
         {
-DOCTEST_CLANG_SUPPRESS_WARNING_WITH_PUSH("-Wdeprecated-declarations") // gmtime
             static std::string getCurrentTimestamp() {
                 // Beware, this is not reentrant because of backward compatibility issues
                 // Also, UTC only, again because of backward compatibility (%z is C++11)
@@ -2397,16 +2448,19 @@ DOCTEST_CLANG_SUPPRESS_WARNING_WITH_PUSH("-Wdeprecated-declarations") // gmtime
                 std::time(&rawtime);
                 auto const timeStampSize = sizeof("2017-01-16T17:06:45Z");
 
-                std::tm* timeInfo;
-                timeInfo = std::gmtime(&rawtime);
+                std::tm timeInfo;
+#ifdef DOCTEST_PLATFORM_WINDOWS
+                gmtime_s(&timeInfo, &rawtime);
+#else // DOCTEST_PLATFORM_WINDOWS
+                gmtime_r(&rawtime, &timeInfo);
+#endif // DOCTEST_PLATFORM_WINDOWS
 
                 char timeStamp[timeStampSize];
                 const char* const fmt = "%Y-%m-%dT%H:%M:%SZ";
 
-                std::strftime(timeStamp, timeStampSize, fmt, timeInfo);
+                std::strftime(timeStamp, timeStampSize, fmt, &timeInfo);
                 return std::string(timeStamp);
             }
-DOCTEST_CLANG_SUPPRESS_WARNING_POP
 
             struct JUnitTestMessage
             {

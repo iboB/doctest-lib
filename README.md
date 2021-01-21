@@ -15,6 +15,6 @@ With this you don't have to define your own file with a doctest implementation a
 
 ## Copying
 
-The files in `doctest/parts` are copied from [onqtam/doctest](https://github.com/onqtam/doctest/) and are under the [MIT Software License](http://opensource.org/licenses/MIT). Copyright &copy;  2016-2020 Viktor Kirilov
+The files in `doctest/parts` are copied from [onqtam/doctest](https://github.com/onqtam/doctest/) and are under the [MIT Software License](http://opensource.org/licenses/MIT). Copyright &copy;  2016-2021 Viktor Kirilov
 
 Everything else is simple boilerplate which I release in the public domain.
