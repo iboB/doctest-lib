@@ -1,6 +1,6 @@
 # doctest-lib
 
-A wrapper of the awesome C++ unit-testing library **[doctest](https://github.com/onqtam/doctest/)**.
+A wrapper of the awesome C++ unit-testing library **[doctest](https://github.com/doctest/doctest/)**.
 
 It makes using the library as a submodule with CMake a bit easier.
 
@@ -15,6 +15,6 @@ With this you don't have to define your own file with a doctest implementation a
 
 ## Copying
 
-The files in `doctest/parts` are copied from [onqtam/doctest](https://github.com/onqtam/doctest/) and are under the [MIT Software License](http://opensource.org/licenses/MIT). Copyright &copy;  2016-2021 Viktor Kirilov
+The files in `doctest/parts` are copied from [doctest/doctest](https://github.com/doctest/doctest/) and are under the [MIT Software License](http://opensource.org/licenses/MIT). Copyright &copy;  2016-2021 Viktor Kirilov
 
 Everything else is simple boilerplate which I release in the public domain.
