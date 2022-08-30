@@ -4,12 +4,15 @@ A wrapper of the awesome C++ unit-testing library **[doctest](https://github.com
 
 It makes using the library as a submodule with CMake a bit easier.
 
-It has a CMakeLists.txt which is nothing on its own. It's supposed to be added by `add_subdirectory`. It then defines two static library targets:
+It has a `CMakeLists.txt` which is supposed to be added by `add_subdirectory` and defines the following targets:
 
-* `doctest` - which is a library with no main function, in case you want to write your own
-* `doctest-main` - which defines a main function and is the common way of using doctest
+* `doctest-headers` - a header-only interface library, in case you want to add the implementation in your own files
+* `doctest` - a static library with no main function, in case you want to write your own
+* `doctest-main` - a static library which defines a main function and is the common way of using doctest
 
 To use doctest with this helper: `#include <doctest/doctest.h>`
+
+For the header-only use include the implementation with `#include <doctest/impl.h>`
 
 With this you don't have to define your own file with a doctest implementation and it doesn't impose any compiler or linker settings whatsoever on the caller.
 
