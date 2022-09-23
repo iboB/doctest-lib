@@ -6,6 +6,7 @@ mark_as_advanced(DOCTEST_LIB_TREAT_CHAR_STAR_AS_STRING DOCTEST_LIB_USE_STD_HEADE
 
 # doctest-headers
 add_library(doctest-headers INTERFACE)
+add_library(doctest::headers ALIAS doctest-headers)
 target_include_directories(doctest-headers INTERFACE .)
 
 if(DOCTEST_LIB_TREAT_CHAR_STAR_AS_STRING)
@@ -18,9 +19,11 @@ endif()
 
 # doctest lib
 add_library(doctest STATIC doctest/parts/doctest.cpp)
+add_library(doctest::doctest ALIAS doctest)
 target_compile_definitions(doctest PRIVATE -DDOCTEST_IMPLEMENT=1)
 target_link_libraries(doctest PUBLIC doctest-headers)
 
 # doctest-main
 add_library(doctest-main STATIC doctest/doctest-main.cpp)
+add_library(doctest::main ALIAS doctest-main)
 target_link_libraries(doctest-main PUBLIC doctest)

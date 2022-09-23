@@ -6,9 +6,9 @@ It makes using the library as a submodule with CMake a bit easier.
 
 It has a `CMakeLists.txt` which is supposed to be added by `add_subdirectory` and defines the following targets:
 
-* `doctest-headers` - a header-only interface library, in case you want to add the implementation in your own files
-* `doctest` - a static library with no main function, in case you want to write your own
-* `doctest-main` - a static library which defines a main function and is the common way of using doctest
+* `doctest::headers` or `doctest-headers` - a header-only interface library, in case you want to add the implementation in your own files
+* `doctest::doctest` or `doctest` - a static library with no main function, in case you want to write your own
+* `doctest::main` or `doctest-main` - a static library which defines a main function and is the common way of using doctest
 
 To use doctest with this helper: `#include <doctest/doctest.h>`
 
